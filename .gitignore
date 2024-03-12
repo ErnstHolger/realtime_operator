@@ -2,6 +2,7 @@
 .vscode
 .benchmarks
 .pytest_cache
+.github/workflows
 __pycache__
 
 *.pyc
