@@ -2,7 +2,8 @@
 .vscode
 .benchmarks
 .pytest_cache
+dist
+realtime_operator.egg-info
 __pycache__
-
 *.pyc
 
