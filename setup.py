@@ -11,15 +11,4 @@ setup(
     # other arguments omitted
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version='0.1.2',
-    description='Reatime Operator for time series data',
-    url='https://github.com/ErnstHolger/realtime_operator',
-    author='Holger Amort',
-    author_email='holgeramort@gmail.com',
-    license='MIT',
-    packages=['realtime_operator'],
-    install_requires=[
-          'numpy','numba','matplotlib','pytest','pytest-benchmark'
-      ],
-      zip_safe=False)
 )

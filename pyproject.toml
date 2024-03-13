@@ -12,6 +12,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+  'matplotlib',
+  'numba',
+  'numpy',
+  'pytest',
+  'pytest-benchmark',
+  'python-dateutil'
+]
 
 [project.urls]
 Homepage = "https://github.com/ErnstHolger/realtime_operator"
