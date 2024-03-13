@@ -3,7 +3,7 @@ import numba as nb
 import numpy as np
 
 BLOCK_SIZE = 512
-START_TIME="2024-01-01 08:00:00"
+START_TIME = "2024-01-01 08:00:00"
 
 
 def to_utc_seconds(dt64):
@@ -55,11 +55,83 @@ def identity(n, t, z):
     """
     return n, t, z
 
-def create_sinusoid(n,step, amplitude, shift, frequency):
-    start=np.datetime64(START_TIME)
-    t = np.arange(0,n,step)+start
-    z = amplitude * np.sin(2 * np.pi * frequency * (t + shift))
-    return t,z
+
+import numpy as np
+
+
+def get_inhomogeneous_time_seris(n, min_step=0.1, max_step=2.5, offset=1_704_096_000):
+    """
+    Generate an inhomogeneous time series.
+
+    Parameters:
+    - n (int): Number of time steps to generate.
+    - min_step (float): Minimum time step.
+    - max_step (float): Maximum time step.
+    - offset (int): Offset to add to the generated time series.
+
+    Returns:
+    - t (ndarray): Array of generated time steps.
+    """
+
+    time_delta = np.random.uniform(min_step, max_step, n)
+    t = np.cumsum(time_delta) + offset
+    return t
+
+
+def get_sinusoid(t, amplitude, shift, frequency):
+    """
+    Generate a sinusoidal waveform.
+
+    Parameters:
+    t (array-like): Time values.
+    amplitude (float): Amplitude of the waveform.
+    shift (float): Phase shift of the waveform.
+    frequency (float): Frequency of the waveform.
+
+    Returns:
+    tuple: A tuple containing the time values and the generated waveform.
+    """
+
+    n = t.size
+    z = amplitude * np.sin(2 * np.pi * frequency * (t + shift) / n)
+    return t, z
+
+
+def get_white_noise(length, mean=0, std_dev=1):
+    """
+    Generate white noise samples.
+
+    Parameters:
+    - length (int): The number of samples to generate.
+    - mean (float, optional): The mean of the normal distribution. Default is 0.
+    - std_dev (float, optional): The standard deviation of the normal distribution. Default is 1.
+
+    Returns:
+    - numpy.ndarray: An array of white noise samples.
+    """
+    return np.random.normal(mean, std_dev, length)
+
+
+import numpy as np
+
+
+def create_random_index(n, length):
+    """
+    Generate an array of random indices.
+
+    Parameters:
+    - n (int): The number of indices to generate.
+    - length (int): The maximum value for the indices.
+
+    Returns:
+    - index (ndarray): An array of random indices.
+
+    """
+    index = np.zeros(n, dtype=np.int64)
+    for i in range(n):
+        index[i] = np.random.randint(0, length)
+    return index
+
 
 @nb.jit("i8(f8[:],i8)", nopython=True)
 def update_buffer(buffer, increment):
@@ -161,8 +233,6 @@ def diff_slope(buffer, t, z):
 
 
 @nb.jit("Tuple((f8, f8))(f8[:], f8, f8)", nopython=True)
-import math
-
 def log_return(buffer, t, z):
     """
     Calculate the logarithmic return based on the given buffer, time, and value.
@@ -206,9 +276,9 @@ def ema(tau, inter, buffer, t, z):
         buffer[0] = z
         buffer[1] = t
         buffer[2] = z
-        return t, buffer[+0]
+        return t, buffer[0]
 
-    delta = t - buffer[+1]
+    delta = t - buffer[1]
     if delta == 0:
         delta = 1e-6
     alpha = delta / tau
@@ -220,9 +290,9 @@ def ema(tau, inter, buffer, t, z):
         nu = (1 - mu) / alpha
     elif inter == 1:
         nu = mu
-    buffer[+0] = mu * buffer[+0] + (nu - mu) * buffer[+2] + (1 - nu) * z
-    buffer[+1] = t
-    buffer[+2] = z
+    buffer[0] = mu * buffer[0] + (nu - mu) * buffer[2] + (1 - nu) * z
+    buffer[1] = t
+    buffer[2] = z
     return t, buffer[+0]
 
 
@@ -246,7 +316,7 @@ def nema(tau, inter, n, buffer, t, z):
     v = np.zeros(n, dtype=np.float64)
     # ema[0]=ema | ema[1]=tp | ema[2]=zp
     _tau = tau / float(n)
-    _, v[0] = ema(_tau, inter, buffer[0:], t, z)
+    _, v[0] = ema(_tau, inter, buffer, t, z)
     for i in range(1, n):
         _, v[i] = ema(_tau, 0, buffer[3 * i :], t, v[i - 1])
     return t, v[-1]
@@ -270,7 +340,7 @@ def delta(tau, buffer, t, z):
     gamma = 1.22208
     beta = 0.65
     alpha = 1 / (gamma * (8 * beta - 3))
-    _, n0 = ema(alpha * tau, 0, buffer[0:], t, z)
+    _, n0 = ema(alpha * tau, 0, buffer, t, z)
     _, n1 = ema(alpha * tau, 0, buffer[1 * 3 :], t, z)
     _, n1 = ema(alpha * tau, 0, buffer[2 * 3 :], t, n1)
     _, n2 = ema(alpha * beta * tau, 0, buffer[3 * 3 :], t, z)
@@ -294,7 +364,7 @@ def delta2nd(tau, buffer, t, z):
         tuple: A tuple containing the updated t and z values.
     """
     _tau = tau / 2  # according to the book, shifted twice
-    t, z1 = delta(_tau, buffer[0:], t, z)
+    t, z1 = delta(_tau, buffer, t, z)
     t, z2 = delta(_tau, buffer[7 * 3 :], t, z1)
     return t, z2
 
@@ -314,7 +384,7 @@ def xy_slope(tau, buffer, t, x, y):
     Returns:
     - tuple: A tuple containing the current time and the slope of the y-coordinate with respect to the x-coordinate.
     """
-    _, dx = delta(tau, buffer[0:], t, x)
+    _, dx = delta(tau, buffer, t, x)
     _, dy = delta(tau, buffer[7 * 3 :], t, y)
     if dx == 0:
         return t, 0
@@ -342,7 +412,7 @@ def ma(tau, inter, n, buffer, t, z):
     _tau = 2 * tau / (n + 1.0)
     _, v[0] = ema(_tau, inter, buffer, t, z)
     for i in range(1, n):
-        _, v[i] = ema(_tau, 0, buffer[3 * n :], t, v[i - 1])
+        _, v[i] = ema(_tau, 0, buffer[3 * i :], t, v[i - 1])
     for i in range(0, n):
         rsum += v[i]
     return t, rsum / n
@@ -413,10 +483,12 @@ def zscore(tau, inter, n, buffer, t, z):
 
     # ema[0]=ema | ema[1]=tp | ema[2]=zp
     v = np.zeros(3, dtype=np.float64)
-    _, v[0] = ma(tau, inter, n, buffer[0], t, z)
+    _, v[0] = ma(tau, inter, n, buffer, t, z)
     tmp = (v[0] - z) * (v[0] - z)
-    _, v[1] = ma(tau, inter, n, buffer[1], t, tmp)
+    _, v[1] = ma(tau, inter, n, buffer[n * 3 :], t, tmp)
     v[2] = math.sqrt(v[1])
+    if v[2] == 0:
+        return t, 0
     return t, (z - v[0]) / v[2]
 
 
@@ -443,7 +515,7 @@ def _cor(tau, inter, n, buffer, t, x, y):
     _, v[0:3] = _msd(tau, inter, n, buffer, t, x)
     _, v[3:6] = _msd(tau, inter, n, buffer[3 * 2 * n :], t, y)
     tmp = (x - v[0]) * (y - v[3])
-    _, ma_xy = ma(tau, inter, n, buffer[3 * 3 * n :], t, tmp)
+    _, ma_xy = ma(tau, inter, n, buffer[3 * 4 * n :], t, tmp)
     tmp = v[2] * v[5]
     if tmp == 0:
         v[6] = 0
@@ -494,18 +566,15 @@ def cor2(tau, inter, n, buffer, t, x, y):
 
     # ema[0]=ema | ema[1]=tp | ema[2]=zp
     v = np.zeros(7, dtype=np.float64)
-    _, v[0:3] = _msd(tau, inter, n, buffer[0:2], t, x)
-    _, v[3:6] = _msd(tau, inter, n, buffer[2:4], t, y)
+    _, v[0:3] = _msd(tau, inter, n, buffer, t, x)
+    _, v[3:6] = _msd(tau, inter, n, buffer[2 * n * 3 :], t, y)
     if (v[2] * v[5]) == 0:
         # todo: this might not be a good choice
         tmp = (x - v[0]) * (y - v[3]) / 1
     else:
         tmp = (x - v[0]) * (y - v[3]) / (v[2] * v[5])
-    _, v[6] = ma(tau, inter, n, buffer[4], t, tmp)
+    _, v[6] = ma(tau, inter, n, buffer[4 * n * 3], t, tmp)
     return t, v[6]
-
-
-
 
 
 @nb.jit(nopython=True)
@@ -527,14 +596,14 @@ def linear_regression(tau, inter, n, buffer, t, x, y):
     """
     r = np.empty(5, dtype=np.float64)
     # ema[0]=ema | ema[1]=tp | ema[2]=zp
-    _, v = _cor(tau, inter, n, buffer[0:5], t, x, y)
+    _, v = _cor(tau, inter, n, buffer, t, x, y)
     if v[2] == 0:
         beta = 0
     else:
         beta = v[6] * v[5] / v[2]
     alpha = v[3] - (beta * v[0])
     _delta = y - (alpha + beta * x)
-    _, mse = ma(tau, inter, n, buffer[6], t, _delta * _delta)
+    _, mse = ma(tau, inter, n, buffer[5 * n * 3 :], t, _delta * _delta)
     rmse = math.sqrt(mse)
     r[4] = v[6]
     r[3] = rmse
@@ -564,10 +633,10 @@ def linear_regression2(tau, inter, n, buffer, t, x, y):
     """
     r = np.empty(4)
     # ema[0]=ema | ema[1]=tp | ema[2]=zp
-    _, mx = ma(tau, inter, n, buffer[0], t, x)
-    _, my = ma(tau, inter, n, buffer[1], t, y)
-    _, mx_xy = ma(tau, inter, n, buffer[2], t, (x - mx) * (y - my))
-    _, mx_x2 = ma(tau, inter, n, buffer[3], t, (x - mx) * (x - mx))
+    _, mx = ma(tau, inter, n, buffer, t, x)
+    _, my = ma(tau, inter, n, buffer[1 * n * 3 :], t, y)
+    _, mx_xy = ma(tau, inter, n, buffer[2 * n * 3 :], t, (x - mx) * (y - my))
+    _, mx_x2 = ma(tau, inter, n, buffer[3 * n * 3 :], t, (x - mx) * (x - mx))
     if mx_x2 > 0:
         beta = mx_xy / mx_x2
         alpha = my - beta * mx
@@ -576,7 +645,7 @@ def linear_regression2(tau, inter, n, buffer, t, x, y):
         alpha = np.NAN
 
     delta = y - (alpha + beta * x)
-    _, mse = ma(tau, inter, n, buffer[4], t, delta * delta)
+    _, mse = ma(tau, inter, n, buffer[4 * n * 3 :], t, delta * delta)
     rmse = math.sqrt(mse)
     r[3] = rmse
     r[2] = mse
@@ -608,6 +677,27 @@ def downsample(buffer, t, z, delta):
     buffer[1] = z
     buffer[2] = 0
     return tn, zn
+
+
+@nb.jit(
+    "Tuple((f8, f8))(f8, f8, optional(f8), optional(f8), optional(f8), optional(f8), optional(f8), optional(f8))",
+    nopython=True,
+)
+def limit(t, z, lo, hi, lolo, hihi, lololo, hihihi):
+    _z = 0
+    if lo is not None and z < lo:
+        _z = -1
+    if hi is not None and z > hi:
+        _z = 1
+    if lolo is not None and z < lolo:
+        _z = -2
+    if hihi is not None and z > hihi:
+        _z = 2
+    if lololo is not None and z < lololo:
+        _z = -3
+    if hihihi is not None and z > hihihi:
+        _z = 3
+    return t, _z
 
 
 @nb.jit(nopython=True)

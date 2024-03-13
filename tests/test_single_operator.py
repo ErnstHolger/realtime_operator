@@ -213,6 +213,89 @@ def test_msd():
     t, z, buffer = create_test_data(100)
     zn = 0
     for i in range(99):
-        tn, zn = msd(1, 0, 5, buffer, t[i], z[i])
+        tn, _ = msd(1, 0, 5, buffer, t[i], z[i])
 
     assert tn == t[-1]
+
+
+"""    zscore,
+    _cor,
+    cor,
+    cor2,
+    linear_regression,
+    linear_regression2,
+    downsample,
+    outlier,
+    outlier_slope
+    """
+
+
+def test_zscore():
+    t, z, buffer = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, _ = zscore(1, 0, 5, buffer, t[i], z[i])
+
+    assert tn == t[-1]
+
+
+def test__cor():
+    t, z, buffer = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, zn = _cor(1, 0, 5, buffer, t[i], z[i], z[i])
+
+    assert tn == t[-1]
+    assert abs(zn[6] - 1) < 1e6
+
+
+def test_cor():
+    t, z, buffer = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, zn = cor(1, 0, 5, buffer, t[i], z[i], z[i])
+
+    assert tn == t[-1]
+    assert abs(zn - 1) < 1e6
+
+
+def test_linear_regression():
+    t, z, buffer = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, zn = linear_regression(1, 0, 5, buffer, t[i], z[i], z[i])
+
+    assert tn == t[-1]
+    assert abs(zn - 1) < 1e6
+
+
+def test_linear_regression2():
+    t, z, buffer = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, zn = linear_regression2(1, 0, 5, buffer, t[i], z[i], z[i])
+
+    assert tn == t[-1]
+    assert abs(zn - 1) < 1e6
+
+
+def test_outlier():
+    t, z, buffer = create_test_data(100)
+    z[-1] = 5
+    zn = 0
+    for i in range(99):
+        tn, zn = outlier(buffer, t[i], z[i], 2, 1)
+
+    assert tn == t[-1]
+    assert zn == z[-2]
+
+
+def test_outlier_slope():
+    t, z, buffer = create_test_data(100)
+    z[-1] = 5
+    zn = 0
+    for i in range(99):
+        tn, zn = outlier_slope(buffer, t[i], z[i], 2, 1)
+
+    assert tn == t[-1]
+    assert zn == z[-2]
