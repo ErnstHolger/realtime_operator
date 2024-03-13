@@ -37,6 +37,7 @@ def plot_timeseries(t, x, y=None, title=""):
         ax2.tick_params("y", colors="r")
 
     plt.title(title)
+    plt.savefig("filename.png")
     plt.show()
     plt.pause(0.001)
 
