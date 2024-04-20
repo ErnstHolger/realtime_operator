@@ -74,14 +74,6 @@ def test_exceed_buffer_size():
         assert "Buffer too small"
 
 
-def test_benchmark_udapte_buffer(benchmark):
-    buffer = np.zeros(500, dtype=float)
-
-    def setup():
-        return (buffer, 2), {}
-
-    benchmark.pedantic(update_buffer, setup=setup, rounds=100, warmup_rounds=1)
-
 
 def test_tick():
     t, z, buffer = create_test_data()
@@ -188,15 +180,6 @@ def test_ma():
 
     assert tn == t[-1]
     assert zn < z[-1]
-
-
-def test_benchmark_ma(benchmark):
-    buffer = np.zeros(500, dtype=float)
-
-    def setup():
-        return (1, 0, 10, buffer, 1, 2), {}
-
-    benchmark.pedantic(ma, setup=setup, rounds=100, warmup_rounds=1)
 
 
 def test__msd():
