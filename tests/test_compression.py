@@ -1,25 +1,39 @@
 import numpy as np
-import pytest
-import math
+
 
 from compression import (
-    timedelta_min,
+    deduplicate,
+    minimum_timedelta,
     exception_deviation,
-    pi_exception_deviation,
+    exception_deviation_previous,
     swinging_door,
 )
 
 t = np.arange(1, 20, dtype=float) + 1
 z = np.arange(1, 20, dtype=float)
-buffer = np.zeros(4, dtype=float)
+state = np.zeros(4, dtype=float)
 
 
-def test_timedelta_min():
-    n = len(z)
-    buffer = np.zeros(2, dtype=float)
+def test_deduplicate():
+    state = np.zeros(3, dtype=float)
+    zp = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3]
+    n = len(zp)
     result = []
     for i in range(n):
-        _, zn, _ = timedelta_min(3, buffer, t[i], z[i])
+        _, zn, _ = deduplicate(state, t[i], zp[i])
+        for i in zn:
+            result.append(i)
+
+    desired_array = np.array([1.0, 2.0, 3.0])
+    assert np.all(np.array(result) == desired_array)
+
+
+def test_minimum_timedelta():
+    n = len(z)
+    state = np.zeros(3, dtype=float)
+    result = []
+    for i in range(n):
+        _, zn, _ = minimum_timedelta(3, state, t[i], z[i])
         for i in zn:
             result.append(i)
 
@@ -29,10 +43,10 @@ def test_timedelta_min():
 
 def test_exception_deviation():
     n = len(z)
-    buffer = np.zeros(3, dtype=float)
+    state = np.zeros(3, dtype=float)
     result = []
     for i in range(n):
-        _, zn, _ = exception_deviation(3, buffer, t[i], z[i], 0, 1e6)
+        _, zn, _ = exception_deviation(3, state, t[i], z[i], 0, 1e6)
         for i in zn:
             result.append(i)
 
@@ -40,12 +54,12 @@ def test_exception_deviation():
     assert np.all(np.array(result) == desired_array)
 
 
-def test_pi_exception_deviation():
+def test_exception_deviation_previous():
     n = len(z)
-    buffer = np.zeros(5, dtype=float)
+    state = np.zeros(5, dtype=float)
     result = []
     for i in range(n):
-        _, zn, _ = pi_exception_deviation(4, buffer, t[i], z[i], 0, 1e6)
+        _, zn, _ = exception_deviation_previous(4, state, t[i], z[i], 0, 1e6)
         for i in zn:
             result.append(i)
 
@@ -56,10 +70,10 @@ def test_pi_exception_deviation():
 def test_swinging_door():
     zp = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     n = len(zp)
-    buffer = np.zeros(7, dtype=float)
+    state = np.zeros(7, dtype=float)
     result = []
     for i in range(n):
-        _, zn, _ = swinging_door(4, buffer, t[i], zp[i], 0, 1e6)
+        _, zn, _ = swinging_door(4, state, t[i], zp[i], 0, 1e6)
         for i in zn:
             result.append(i)
 
