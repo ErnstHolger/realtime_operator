@@ -4,7 +4,7 @@ import numpy as np
 import sys
 
 
-# @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
+@nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
 def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
     epsilon = 1e-15
     if state[0] == 0:
