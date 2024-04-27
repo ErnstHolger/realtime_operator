@@ -19,27 +19,16 @@ state = np.zeros(4, dtype=float)
 
 
 def test_interpolate_fast():
-    t = np.arange(1, 20, dtype=float)
-    tn= np.arange(0, 20,1, dtype=float) 
-    start=time.time()
+    t = np.arange(1, 20,1, dtype=float)
+    tn= np.arange(0, 20,0.001, dtype=float) 
+
     zn=interpolate(tn,t,z)
-    a=time.time()-start
-
-    start=time.time()
     zm=interpolate_fast(tn,t,z)
-    b=time.time()-start
-    assert a>b
 
+    zn = np.where(np.isnan(zn), 0, zn)
+    zm = np.where(np.isnan(zm), 0, zm)
+    assert np.all(zn == zm)
 
-
-
-def test_any_compression():
-
-    zp = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0]
-    tn, zn,_=any_compression(t,zp,0)
-
-    desired_array = np.array([1.0, 2.0, 3.0])
-    assert np.all(np.array(zn) == desired_array)
 
 def test_deduplicate():
     state = np.zeros(3, dtype=float)

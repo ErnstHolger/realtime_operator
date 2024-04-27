@@ -12,29 +12,32 @@ COMPRESSION_TYPE={"DEDUPLICATE" : 0,
     "SWINGING_DOOR": 4
 }
 
-@nb.jit(nopython=True)
 def interpolate(t,tn,zn):
-    return np.interp(t, tn, zn)
+    return np.interp(t, tn, zn, left=np.nan, right=np.nan)
 
-#@nb.jit(nopython=True)
+@nb.jit(nopython=True)
 def interpolate_fast(t,tn,zn):
     npointer=0
-    n0 = len(t)
-    n1 = len(tn)
-    z = np.full(n0, np.nan, dtype=float)
+    len_t = len(t)
+    len_tn = len(tn)
+    z = np.full(len_t, np.nan, dtype=float)
     # start condition: t[i]>=tn[0]
-    n2 = 0
-    while n2 < n1 and t[0] < tn[0]:
-        n2 += 1
+    left_t = 0
+    left_tn = 0
 
-    for i in range(n2, n0):
-        while npointer < n1-1 and t[i] > tn[npointer+1]:
-            npointer += 1
-        if npointer == n1 - 1:
+    # no interpolation left of the first point
+    while left_t < len_t and t[left_t] < tn[0]:
+        left_t += 1
+
+    # llop through all t values
+    for i in range(left_t, len_t):
+        while left_tn < len_tn-1 and t[i] > tn[left_tn+1]:
+            left_tn += 1
+        if left_tn == len_tn - 1:
             break
-        if t[i] >= tn[npointer] and t[i] <= tn[npointer+1]:
-            m=(zn[npointer+1]-zn[npointer])/(tn[npointer+1]-tn[npointer])
-            z[i] = zn[npointer] + m * (t[i] - tn[npointer])
+        if t[i] >= tn[left_tn] and t[i] <= tn[left_tn+1]:
+            m=(zn[left_tn+1]-zn[left_tn])/(tn[left_tn+1]-tn[left_tn])
+            z[i] = zn[left_tn] + m * (t[i] - tn[left_tn])
     return z
 
 
