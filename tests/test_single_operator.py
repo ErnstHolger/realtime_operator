@@ -126,9 +126,35 @@ def test_ema():
     assert zn > z[-2]
     assert zn < z[-1]
 
+def test_ema_ooo():
+    t, z, state = create_test_data()
+
+    # add ooo event
+    t[6]=1
+    z[6]=100_000
+    zn = 0
+    for i in range(9):
+        tn, zn = ema(1, 0, state, t[i], z[i])
+
+    assert tn == t[-1]
+    assert zn > z[-2]
+    assert zn < z[-1]
+
 
 def test_nema():
     t, z, state = create_test_data()
+    zn = 0
+    for i in range(9):
+        state[0] = 0
+        tn, zn = nema(1, 0, 5, state, t[i], z[i])
+
+    assert tn == t[-1]
+    assert zn < z[-1]
+
+def test_nema_ooo():
+    t, z, state = create_test_data()
+    t[6]=1
+    z[6]=100_000
     zn = 0
     for i in range(9):
         state[0] = 0

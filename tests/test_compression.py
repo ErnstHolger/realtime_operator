@@ -1,7 +1,11 @@
 import numpy as np
+import time
 
-
-from compression import (
+from realtime_operator.compression import (
+    COMPRESSION_TYPE,
+    interpolate,    
+    interpolate_fast,
+    any_compression,
     deduplicate,
     minimum_timedelta,
     exception_deviation,
@@ -14,13 +18,36 @@ z = np.arange(1, 20, dtype=float)
 state = np.zeros(4, dtype=float)
 
 
+def test_interpolate_fast():
+    t = np.arange(1, 20, dtype=float)
+    tn= np.arange(0, 20,1, dtype=float) 
+    start=time.time()
+    zn=interpolate(tn,t,z)
+    a=time.time()-start
+
+    start=time.time()
+    zm=interpolate_fast(tn,t,z)
+    b=time.time()-start
+    assert a>b
+
+
+
+
+def test_any_compression():
+
+    zp = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0]
+    tn, zn,_=any_compression(t,zp,0)
+
+    desired_array = np.array([1.0, 2.0, 3.0])
+    assert np.all(np.array(zn) == desired_array)
+
 def test_deduplicate():
     state = np.zeros(3, dtype=float)
-    zp = [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3]
+    zp = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0]
     n = len(zp)
     result = []
     for i in range(n):
-        _, zn, _ = deduplicate(state, t[i], zp[i])
+        _ , zn, _ = deduplicate(state, t[i], zp[i],0.0, 1e6)
         for i in zn:
             result.append(i)
 

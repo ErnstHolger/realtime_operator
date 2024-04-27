@@ -279,8 +279,14 @@ def ema(tau, inter, state, t, z):
         return t, state[0]
 
     delta = t - state[1]
+    # ooo event
+    if delta < 0:
+        # return previous state
+        return state[1], state[0]
     if delta == 0:
-        delta = 1e-6
+        # update previous value
+        state[2]=(state[2]+z)/2
+        return state[1], state[0]
     alpha = delta / tau
     mu = math.exp(-alpha)
     nu = 0
@@ -293,7 +299,7 @@ def ema(tau, inter, state, t, z):
     state[0] = mu * state[0] + (nu - mu) * state[2] + (1 - nu) * z
     state[1] = t
     state[2] = z
-    return t, state[+0]
+    return t, state[0]
 
 
 @nb.jit("Tuple((f8, f8))(f8, i8, i8, f8[:], f8, f8)", nopython=True)

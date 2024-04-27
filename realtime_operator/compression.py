@@ -1,11 +1,113 @@
 import math
 import numba as nb
 import numpy as np
+from numba.typed import List
 import sys
+from enum import Enum
 
+COMPRESSION_TYPE={"DEDUPLICATE" : 0,
+    "MINIMUM_TIMEDELTA" : 1,
+    "EXCEPTION_DEVIATION" : 2,
+    "EXCEPTION_DEVIATION_PREVIOUS" : 3,
+    "SWINGING_DOOR": 4
+}
+
+@nb.jit(nopython=True)
+def interpolate(t,tn,zn):
+    return np.interp(t, tn, zn)
+
+#@nb.jit(nopython=True)
+def interpolate_fast(t,tn,zn):
+    npointer=0
+    n0 = len(t)
+    n1 = len(tn)
+    z = np.full(n0, np.nan, dtype=float)
+    # start condition: t[i]>=tn[0]
+    n2 = 0
+    while n2 < n1 and t[0] < tn[0]:
+        n2 += 1
+
+    for i in range(n2, n0):
+        while npointer < n1-1 and t[i] > tn[npointer+1]:
+            npointer += 1
+        if npointer == n1 - 1:
+            break
+        if t[i] >= tn[npointer] and t[i] <= tn[npointer+1]:
+            m=(zn[npointer+1]-zn[npointer])/(tn[npointer+1]-tn[npointer])
+            z[i] = zn[npointer] + m * (t[i] - tn[npointer])
+    return z
+
+
+
+@nb.jit(nopython=True)
+def any_compression(t,z,delta, ftype):
+    tn=[]
+    zn=[]
+    cn=[]
+    n = len(z)
+    if ftype == 0:
+        state = np.zeros(3, dtype=float)
+        for i in range(n):
+            tn_ , zn_, cn_ = deduplicate(state, t[i], z[i],0.0, 1.0e6)
+            for i in range(len(tn_)):
+                tn.append(tn_[i])
+                zn.append(zn_[i])
+                cn.append(cn_[i])
+        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    elif ftype == 1:
+        state = np.zeros(3, dtype=float)
+        for i in range(n):
+            tn_ , zn_, cn_ = minimum_timedelta(delta,state, t[i], z[i],0.0, 1.0e6)
+            for i in range(len(tn_)):
+                tn.append(tn_[i])
+                zn.append(zn_[i])
+                cn.append(cn_[i])
+        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    elif ftype == 2:
+        state = np.zeros(3, dtype=float)
+        for i in range(n):
+            tn_ , zn_, cn_ = exception_deviation(delta,state, t[i], z[i],0.0, 1.0e6)
+            for i in range(len(tn_)):
+                tn.append(tn_[i])
+                zn.append(zn_[i])
+                cn.append(cn_[i])
+        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    elif ftype == 3:
+        state = np.zeros(5, dtype=float)
+        for i in range(n):
+            tn_ , zn_, cn_ = exception_deviation_previous(delta,state, t[i], z[i],0.0, 1.0e6)
+            for i in range(len(tn_)):
+                tn.append(tn_[i])
+                zn.append(zn_[i])
+                cn.append(cn_[i])
+        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    elif ftype == 4:
+        state = np.zeros(7, dtype=float)
+        for i in range(n):
+            tn_ , zn_, cn_ = swinging_door(delta,state, t[i], z[i],0.0, 1.0e6)
+            for i in range(len(tn_)):
+                tn.append(tn_[i])
+                zn.append(zn_[i])
+                cn.append(cn_[i])
+        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    
+    return np.array([0],np.float64),np.array([0],np.float64),np.array([0],np.float64)
 
 @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
 def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
+    """
+    Deduplicates data points based on time and value.
+
+    Args:
+        state (numpy.ndarray): State array to store previous time, value, and count.
+        t (float): Current time.
+        z (float): Current value.
+        min_duration_seconds (float, optional): Minimum duration between data points in seconds. Defaults to 0.
+        max_duration_seconds (float, optional): Maximum duration between data points in seconds. Defaults to 1e9.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of deduplicated time, value, and count.
+    """
     epsilon = 1e-15
     if state[0] == 0:
         state[0] = t
@@ -41,6 +143,18 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
 
 @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8, f8[:], f8, f8)", nopython=True)
 def minimum_timedelta(duration_seconds, state, t, z):
+    """
+    Filters data points based on minimum time duration.
+
+    Args:
+        duration_seconds (float): Minimum duration between data points in seconds.
+        state (numpy.ndarray): State array to store previous time, value, and count.
+        t (float): Current time.
+        z (float): Current value.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of filtered time, value, and count.
+    """
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -74,6 +188,20 @@ def minimum_timedelta(duration_seconds, state, t, z):
 def exception_deviation(
     deviation, state, t, z, min_duration_seconds=0, max_duration_seconds=1e9
 ):
+    """
+    Filters data points based on deviation from previous value.
+
+    Args:
+        deviation (float): Maximum allowed deviation from previous value.
+        state (numpy.ndarray): State array to store previous time, value, and count.
+        t (float): Current time.
+        z (float): Current value.
+        min_duration_seconds (float, optional): Minimum duration between data points in seconds. Defaults to 0.
+        max_duration_seconds (float, optional): Maximum duration between data points in seconds. Defaults to 1e9.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of filtered time, value, and count.
+    """
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -111,6 +239,20 @@ def exception_deviation(
 def exception_deviation_previous(
     deviation, state, t, z, min_duration_seconds=0, max_duration_seconds=1e9
 ):
+    """
+    Filters data points based on deviation from previous value and previous point.
+
+    Args:
+        deviation (float): Maximum allowed deviation from previous value.
+        state (numpy.ndarray): State array to store previous time, value, previous point, and count.
+        t (float): Current time.
+        z (float): Current value.
+        min_duration_seconds (float, optional): Minimum duration between data points in seconds. Defaults to 0.
+        max_duration_seconds (float, optional): Maximum duration between data points in seconds. Defaults to 1e9.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of filtered time, value, and count.
+    """
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -161,10 +303,24 @@ def exception_deviation_previous(
         )
 
 
-# @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8, f8[:], f8, f8, f8, f8)", nopython=True)
+@nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8, f8[:], f8, f8, f8, f8)", nopython=True)
 def swinging_door(
     deviation, state, t, z, min_duration_seconds=0, max_duration_seconds=1e9
 ):
+    """
+    Filters data points based on deviation from previous value and slope.
+
+    Args:
+        deviation (float): Maximum allowed deviation from previous value.
+        state (numpy.ndarray): State array to store previous time, value, minimum slope, maximum slope, previous point, and count.
+        t (float): Current time.
+        z (float): Current value.
+        min_duration_seconds (float, optional): Minimum duration between data points in seconds. Defaults to 0.
+        max_duration_seconds (float, optional): Maximum duration between data points in seconds. Defaults to 1e9.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of filtered time, value, and count.
+    """
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -181,6 +337,8 @@ def swinging_door(
 
     state[6] += 1
     # calculate slopes
+    # GE = deviation/2
+    # PI = deviation
     min_slope = (z - deviation - state[1]) / (t - state[0])
     max_slope = (z + deviation - state[1]) / (t - state[0])
 
@@ -205,8 +363,11 @@ def swinging_door(
             np.array([count], dtype=np.float64),
         )
     else:
-        state[2] = min_slope
-        state[3] = max_slope
+        # only update if min_slope>prev_min_slopw or max_slope<prev_max_slope
+        if min_slope > state[2]:
+            state[2] = min_slope
+        if max_slope < state[3]:
+            state[3] = max_slope
         state[4] = t
         state[5] = z
         return (
@@ -214,3 +375,4 @@ def swinging_door(
             np.zeros(0, np.float64),
             np.zeros(0, np.float64),
         )
+
