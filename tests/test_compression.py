@@ -17,6 +17,9 @@ t = np.arange(1, 20, dtype=float) + 1
 z = np.arange(1, 20, dtype=float)
 state = np.zeros(4, dtype=float)
 
+def test_any_compression():
+    tn, zn, cn = any_compression(t, z,30.0,0)
+    a=1
 
 def test_interpolate_fast():
     t = np.arange(1, 20,1, dtype=float)

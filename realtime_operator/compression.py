@@ -11,6 +11,7 @@ COMPRESSION_TYPE={"DEDUPLICATE" : 0,
     "EXCEPTION_DEVIATION_PREVIOUS" : 3,
     "SWINGING_DOOR": 4
 }
+EPSILON = 1e-15
 
 def interpolate(t,tn,zn):
     return np.interp(t, tn, zn, left=np.nan, right=np.nan)
@@ -56,16 +57,14 @@ def any_compression(t,z,delta, ftype):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
                 cn.append(cn_[i])
-        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
     elif ftype == 1:
         state = np.zeros(3, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = minimum_timedelta(delta,state, t[i], z[i],0.0, 1.0e6)
+            tn_ , zn_, cn_ = minimum_timedelta(delta,state, t[i], z[i])
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
                 cn.append(cn_[i])
-        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
     elif ftype == 2:
         state = np.zeros(3, dtype=float)
         for i in range(n):
@@ -74,7 +73,6 @@ def any_compression(t,z,delta, ftype):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
                 cn.append(cn_[i])
-        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
     elif ftype == 3:
         state = np.zeros(5, dtype=float)
         for i in range(n):
@@ -83,7 +81,6 @@ def any_compression(t,z,delta, ftype):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
                 cn.append(cn_[i])
-        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
     elif ftype == 4:
         state = np.zeros(7, dtype=float)
         for i in range(n):
@@ -92,9 +89,12 @@ def any_compression(t,z,delta, ftype):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
                 cn.append(cn_[i])
-        return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
-    
-    return np.array([0],np.float64),np.array([0],np.float64),np.array([0],np.float64)
+    # always capture the last point to allow for interpolation:
+    if abs(tn[-1] - t[-1]) >= EPSILON:
+        tn.append(t[-1])
+        zn.append(z[-1])
+        cn.append(0)
+    return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
 
 @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
 def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
@@ -111,7 +111,7 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
     Returns:
         Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of deduplicated time, value, and count.
     """
-    epsilon = 1e-15
+    
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -121,7 +121,7 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
             np.array([z], dtype=np.float64),
             np.array([0], dtype=np.float64),
         )
-    deviation_condition = abs(z - state[1]) >= epsilon
+    deviation_condition = abs(z - state[1]) >= EPSILON
     min_duration_condition = (t - state[0]) >= min_duration_seconds
     max_duration_condition = (t - state[0]) >= max_duration_seconds
 
