@@ -5,20 +5,23 @@ from numba.typed import List
 import sys
 from enum import Enum
 
-COMPRESSION_TYPE={"DEDUPLICATE" : 0,
-    "MINIMUM_TIMEDELTA" : 1,
-    "EXCEPTION_DEVIATION" : 2,
-    "EXCEPTION_DEVIATION_PREVIOUS" : 3,
-    "SWINGING_DOOR": 4
+COMPRESSION_TYPE = {
+    "DEDUPLICATE": 0,
+    "MINIMUM_TIMEDELTA": 1,
+    "EXCEPTION_DEVIATION": 2,
+    "EXCEPTION_DEVIATION_PREVIOUS": 3,
+    "SWINGING_DOOR": 4,
 }
 EPSILON = 1e-15
 
-def interpolate(t,tn,zn):
+
+def interpolate(t, tn, zn):
     return np.interp(t, tn, zn, left=np.nan, right=np.nan)
 
+
 @nb.jit(nopython=True)
-def interpolate_fast(t,tn,zn):
-    npointer=0
+def interpolate_fast(t, tn, zn):
+    npointer = 0
     len_t = len(t)
     len_tn = len(tn)
     z = np.full(len_t, np.nan, dtype=float)
@@ -32,27 +35,26 @@ def interpolate_fast(t,tn,zn):
 
     # llop through all t values
     for i in range(left_t, len_t):
-        while left_tn < len_tn-1 and t[i] > tn[left_tn+1]:
+        while left_tn < len_tn - 1 and t[i] > tn[left_tn + 1]:
             left_tn += 1
         if left_tn == len_tn - 1:
             break
-        if t[i] >= tn[left_tn] and t[i] <= tn[left_tn+1]:
-            m=(zn[left_tn+1]-zn[left_tn])/(tn[left_tn+1]-tn[left_tn])
+        if t[i] >= tn[left_tn] and t[i] <= tn[left_tn + 1]:
+            m = (zn[left_tn + 1] - zn[left_tn]) / (tn[left_tn + 1] - tn[left_tn])
             z[i] = zn[left_tn] + m * (t[i] - tn[left_tn])
     return z
 
 
-
 @nb.jit(nopython=True)
-def any_compression(t,z,delta, ftype):
-    tn=[]
-    zn=[]
-    cn=[]
+def any_compression(t, z, delta, ftype):
+    tn = []
+    zn = []
+    cn = []
     n = len(z)
     if ftype == 0:
         state = np.zeros(3, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = deduplicate(state, t[i], z[i],0.0, 1.0e6)
+            tn_, zn_, cn_ = deduplicate(state, t[i], z[i], 0.0, 1.0e6)
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
@@ -60,7 +62,7 @@ def any_compression(t,z,delta, ftype):
     elif ftype == 1:
         state = np.zeros(3, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = minimum_timedelta(delta,state, t[i], z[i])
+            tn_, zn_, cn_ = minimum_timedelta(delta, state, t[i], z[i])
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
@@ -68,7 +70,7 @@ def any_compression(t,z,delta, ftype):
     elif ftype == 2:
         state = np.zeros(3, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = exception_deviation(delta,state, t[i], z[i],0.0, 1.0e6)
+            tn_, zn_, cn_ = exception_deviation(delta, state, t[i], z[i], 0.0, 1.0e6)
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
@@ -76,7 +78,9 @@ def any_compression(t,z,delta, ftype):
     elif ftype == 3:
         state = np.zeros(5, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = exception_deviation_previous(delta,state, t[i], z[i],0.0, 1.0e6)
+            tn_, zn_, cn_ = exception_deviation_previous(
+                delta, state, t[i], z[i], 0.0, 1.0e6
+            )
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
@@ -84,7 +88,7 @@ def any_compression(t,z,delta, ftype):
     elif ftype == 4:
         state = np.zeros(7, dtype=float)
         for i in range(n):
-            tn_ , zn_, cn_ = swinging_door(delta,state, t[i], z[i],0.0, 1.0e6)
+            tn_, zn_, cn_ = swinging_door(delta, state, t[i], z[i], 0.0, 1.0e6)
             for i in range(len(tn_)):
                 tn.append(tn_[i])
                 zn.append(zn_[i])
@@ -94,7 +98,8 @@ def any_compression(t,z,delta, ftype):
         tn.append(t[-1])
         zn.append(z[-1])
         cn.append(0)
-    return np.array(tn,np.float64),np.array(zn,np.float64),np.array(cn,np.float64)
+    return np.array(tn, np.float64), np.array(zn, np.float64), np.array(cn, np.float64)
+
 
 @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
 def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
@@ -111,7 +116,7 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
     Returns:
         Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of deduplicated time, value, and count.
     """
-    
+
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -327,8 +332,8 @@ def swinging_door(
     if state[0] == 0:
         state[0] = t
         state[1] = z
-        state[2] = -np.inf  # min slope
-        state[3] = np.inf  # max slope
+        state[2] = np.finfo(dtype=np.float64).min  # min slope
+        state[3] = np.finfo(dtype=np.float64).max  # max slope
         state[4] = t
         state[5] = z
         state[6] = 0
@@ -354,8 +359,8 @@ def swinging_door(
         zp = state[5]
         state[0] = tp
         state[1] = zp
-        state[2] = -np.inf  # min slope
-        state[3] = np.inf  # max slope
+        state[2] = np.finfo(dtype=np.float64).min  # min slope
+        state[3] = np.finfo(dtype=np.float64).max  # max slope
         state[4] = t
         state[5] = z
         count = state[6]
@@ -378,4 +383,3 @@ def swinging_door(
             np.zeros(0, np.float64),
             np.zeros(0, np.float64),
         )
-
