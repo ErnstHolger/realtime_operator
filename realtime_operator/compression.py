@@ -130,6 +130,15 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
     min_duration_condition = (t - state[0]) >= min_duration_seconds
     max_duration_condition = (t - state[0]) >= max_duration_seconds
 
+    # ooo condition
+    out_of_order = t <= state[0]
+    if out_of_order:
+        return (
+            np.array([t], dtype=np.float64),
+            np.array([z], dtype=np.float64),
+            np.array([0], dtype=np.float64),
+        )
+
     state[2] += 1
     if (deviation_condition and min_duration_condition) or max_duration_condition:
         state[0] = t
@@ -173,6 +182,14 @@ def minimum_timedelta(duration_seconds, state, t, z):
             np.array([0], dtype=np.float64),
         )
 
+    # ooo condition
+    out_of_order = t <= state[0]
+    if out_of_order:
+        return (
+            np.array([t], dtype=np.float64),
+            np.array([z], dtype=np.float64),
+            np.array([0], dtype=np.float64),
+        )
     state[2] += 1
     if t - state[0] >= duration_seconds:
         state[0] = t
@@ -224,6 +241,15 @@ def exception_deviation(
     deviation_condition = abs(z - state[1]) >= deviation
     min_duration_condition = (t - state[0]) >= min_duration_seconds
     max_duration_condition = (t - state[0]) >= max_duration_seconds
+
+    # ooo condition
+    out_of_order = t <= state[0]
+    if out_of_order:
+        return (
+            np.array([t], dtype=np.float64),
+            np.array([z], dtype=np.float64),
+            np.array([0], dtype=np.float64),
+        )
 
     if (deviation_condition and min_duration_condition) or max_duration_condition:
         state[0] = t
@@ -277,6 +303,15 @@ def exception_deviation_previous(
     deviation_condition = abs(z - state[1]) >= deviation
     min_duration_condition = (t - state[0]) >= min_duration_seconds
     max_duration_condition = (t - state[0]) >= max_duration_seconds
+
+    # ooo condition
+    out_of_order = t <= state[0]
+    if out_of_order:
+        return (
+            np.array([t], dtype=np.float64),
+            np.array([z], dtype=np.float64),
+            np.array([0], dtype=np.float64),
+        )
 
     if (deviation_condition and min_duration_condition) or max_duration_condition:
         # case 1: last hold point and previous point are the same
@@ -347,6 +382,16 @@ def swinging_door(
     # calculate slopes
     # GE = deviation/2
     # PI = deviation
+
+    # ooo condition
+    if t <= state[0]:
+        # return event
+        return (
+            np.array([t], dtype=np.float64),
+            np.array([z], dtype=np.float64),
+            np.array([0], dtype=np.float64),
+        )
+
     min_slope = (z - deviation - state[1]) / (t - state[0])
     max_slope = (z + deviation - state[1]) / (t - state[0])
 

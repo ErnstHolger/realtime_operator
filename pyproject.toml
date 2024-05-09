@@ -1,6 +1,6 @@
 [project]
 name = "realtime_operator"
-version = "0.2.7"
+version = "0.2.9"
 authors = [
   { name="Ernst Holger Amort", email="holgeramort@gmail.com" },
 ]
@@ -13,11 +13,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  'matplotlib',
   'numba',
   'numpy',
   'pytest',
-  'pytest-benchmark',
   'python-dateutil'
 ]
 
