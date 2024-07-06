@@ -56,9 +56,6 @@ def identity(n, t, z):
     return n, t, z
 
 
-import numpy as np
-
-
 def get_inhomogeneous_time_seris(n, min_step=0.1, max_step=2.5, offset=1_704_096_000):
     """
     Generate an inhomogeneous time series.
@@ -110,9 +107,6 @@ def get_white_noise(length, mean=0, std_dev=1):
     - numpy.ndarray: An array of white noise samples.
     """
     return np.random.normal(mean, std_dev, length)
-
-
-import numpy as np
 
 
 def create_random_index(n, length):
@@ -647,8 +641,8 @@ def linear_regression2(tau, inter, n, state, t, x, y):
         beta = mx_xy / mx_x2
         alpha = my - beta * mx
     else:
-        beta = np.NAN
-        alpha = np.NAN
+        beta = np.nan
+        alpha = np.nan
 
     delta = y - (alpha + beta * x)
     _, mse = ma(tau, inter, n, state[4 * n * 3 :], t, delta * delta)
