@@ -152,6 +152,28 @@ def update_state(state, increment):
     state[0] = idx + increment
     return idx
 
+@nb.jit(nopython=True)
+def get_median(state,t,z,tau_int,inter,time_weighted):
+
+    delta=np.zeros(tau_int,dtype=float)
+    cumsum=np.zeros(tau_int,dtype=float)
+    if time_weighted:
+        _tau_int=int(tau_int+1)
+    else:
+        _tau_int=int(tau_int)
+    
+    t_slice=state[0:_tau_int]
+    z_slice=state[_tau_int:(2*_tau_int)]
+    for j in range(_tau_int-1,0,-1):
+        t_slice[j]=t_slice[j-1]
+        z_slice[j]=z_slice[j-1]
+        delta[j]=t_slice[j]-t_slice[j-1]
+    t_slice[0]=t
+    z_slice[0]=z
+    if t_slice[_tau_int-1]==0:
+        return t,z
+    else:
+        return t, np.median(z_slice)
 
 @nb.jit("Tuple((f8, f8))(f8[:], f8, f8)", nopython=True)
 def tick(state, t, z):

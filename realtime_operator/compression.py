@@ -100,7 +100,7 @@ def any_compression(t, z, delta, ftype):
 
 
 @nb.jit("Tuple((f8[:], f8[:], f8[:]))(f8[:], f8, f8, f8, f8)", nopython=True)
-def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
+def deduplicate(state, t, z, min_duration_seconds, max_duration_seconds):
     """
     Deduplicates data points based on time and value.
 
@@ -114,8 +114,6 @@ def deduplicate(state, t, z, min_duration_seconds=0, max_duration_seconds=1e9):
     Returns:
         Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of deduplicated time, value, and count.
     """
-
-def deduplicate(state, t, z, min_duration_seconds=0.0, max_duration_seconds=1.0e9):
     epsilon = 1e-15
     if state[0] == 0:
         state[0] = t

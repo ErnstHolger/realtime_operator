@@ -1,7 +1,6 @@
 [project]
 name = "realtime_operator"
 version = "0.2.9"
-version = "0.2.3"
 authors = [
   { name="Ernst Holger Amort", email="holgeramort@gmail.com" },
 ]
