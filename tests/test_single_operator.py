@@ -28,6 +28,7 @@ from realtime_operator.single_operator import (
     downsample,
     outlier,
     outlier_slope,
+    median
 )
 
 SAMPLE_SIZE = 10
@@ -40,6 +41,12 @@ def create_test_data(n=SAMPLE_SIZE):
     state = np.zeros(state_SIZE, dtype=float)
     return t, z, state
 
+def test_median():
+    t, z, state = create_test_data(100)
+    zn = 0
+    for i in range(99):
+        tn, zn = median(state, t[i], z[i],5)
+    assert zn==97
 
 def test_to_utc_seconds():
     dt64 = np.datetime64("2022-01-01T00:00:00")

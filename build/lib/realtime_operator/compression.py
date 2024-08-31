@@ -16,37 +16,10 @@ EPSILON = 1e-15
 def interpolate(t, tn, zn):
     return np.interp(t, tn, zn, left=np.nan, right=np.nan)
 
-def segment_resample(t, z, lb, ub, count, ratio=0.6):
-    n=len(t)
-    main_count=int(round(ratio*n/count,0))
-    side_count=int(round((1-ratio)*n/(count*2),0))
-    lb_index=int(round(lb*n,0))
-    lb_step=int(round(lb*n/side_count,0))
-    ub_index=int(ub*n)
-    main_step=int(round((ub-lb)*n/main_count,0))
-    ub_step=int((1-ub)*n/side_count)
-    ti=[]
-    zi=[]
-    index=[]
-    if lb_step>0:
-        for i in range(0,lb_index,lb_step):
-            ti.append(float(t[i]))
-            zi.append(float(z[i]))
-            index.append(int(i))
-    if main_step>0:
-        for i in range(lb_index,ub_index,main_step):
-            ti.append(float(t[i]))
-            zi.append(float(z[i]))
-            index.append(int(i))
-    if ub_step>0:
-        for i in range(ub_index,n,ub_step):
-            ti.append(float(t[i]))
-            zi.append(float(z[i]))
-            index.append(int(i))
-    return ti,zi,index
 
 @nb.jit(nopython=True)
 def interpolate_fast(t, tn, zn):
+    npointer = 0
     len_t = len(t)
     len_tn = len(tn)
     z = np.full(len_t, np.nan, dtype=float)
@@ -58,7 +31,7 @@ def interpolate_fast(t, tn, zn):
     while left_t < len_t and t[left_t] < tn[0]:
         left_t += 1
 
-    # loop through all t values
+    # llop through all t values
     for i in range(left_t, len_t):
         while left_tn < len_tn - 1 and t[i] > tn[left_tn + 1]:
             left_tn += 1
@@ -67,16 +40,8 @@ def interpolate_fast(t, tn, zn):
         if t[i] >= tn[left_tn] and t[i] <= tn[left_tn + 1]:
             m = (zn[left_tn + 1] - zn[left_tn]) / (tn[left_tn + 1] - tn[left_tn])
             z[i] = zn[left_tn] + m * (t[i] - tn[left_tn])
-    return t, z
+    return z
 
-@nb.jit(nopython=True)
-def minimum_timedelta_interp(t,z,delta):
-    n = len(z)
-    if n==0:
-        return t,z
-    t_new = np.arange(t[0],t[-1]+delta,delta)
-    z_new = interpolate_fast(t_new,t,z)
-    return t_new,z_new
 
 @nb.jit(nopython=True)
 def any_compression(t, z, delta, ftype):

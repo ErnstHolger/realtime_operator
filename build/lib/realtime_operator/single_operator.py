@@ -153,9 +153,10 @@ def update_state(state, increment):
     return idx
 
 @nb.jit(nopython=True)
-def median(state,t,z,tau_int,inter=0,time_weighted=0):
+def get_median(state,t,z,tau_int,inter,time_weighted):
 
     delta=np.zeros(tau_int,dtype=float)
+    cumsum=np.zeros(tau_int,dtype=float)
     if time_weighted:
         _tau_int=int(tau_int+1)
     else:
