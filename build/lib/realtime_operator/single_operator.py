@@ -156,7 +156,6 @@ def update_state(state, increment):
 def get_median(state,t,z,tau_int,inter,time_weighted):
 
     delta=np.zeros(tau_int,dtype=float)
-    cumsum=np.zeros(tau_int,dtype=float)
     if time_weighted:
         _tau_int=int(tau_int+1)
     else:
@@ -512,6 +511,47 @@ def zscore(tau, inter, n, state, t, z):
     if v[2] == 0:
         return t, 0
     return t, (z - v[0]) / v[2]
+
+@nb.jit(nopython=True)
+def skewness(tau, inter, n, state, t, z):
+    """
+    Calculate the skewness of a given time series.
+
+    Parameters:
+    - tau (float): Time constant for the moving average calculation.
+    - inter (float): Interval between data points.
+    - n (int): Number of data points to consider for the moving average.
+    - state (list): List of states containing previous data points.
+    - t (float): Current time.
+    - z (float): Value for which to calculate the skewness.
+
+    Returns:
+    - tuple: A tuple containing the current time and the calculated skewness value.
+    """
+    _,zm=zscore(tau, inter, n, state, t, z)
+    tmp=math.pow(zm,3)
+    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn,zn
+
+def kurtosis(tau, inter, n, state, t, z):
+    """
+    Calculate the kurtosis of a given time series.
+
+    Parameters:
+    - tau (float): Time constant for the moving average calculation.
+    - inter (float): Interval between data points.
+    - n (int): Number of data points to consider for the moving average.
+    - state (list): List of states containing previous data points.
+    - t (float): Current time.
+    - z (float): Value for which to calculate the kurtosis.
+
+    Returns:
+    - tuple: A tuple containing the current time and the calculated kurtosis value.
+    """
+    _,zm=zscore(tau, inter, n, state, t, z)
+    tmp=math.pow(zm,4)
+    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn,zn
 
 
 @nb.jit(nopython=True)
