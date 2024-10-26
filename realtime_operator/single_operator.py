@@ -484,7 +484,6 @@ def msd(tau, inter, n, state, t, z):
     _, v = _msd(tau, inter, n, state, t, z)
     return t, v[2]
 
-
 @nb.jit(nopython=True)
 def zscore(tau, inter, n, state, t, z):
     """
@@ -511,6 +510,47 @@ def zscore(tau, inter, n, state, t, z):
     if v[2] == 0:
         return t, 0
     return t, (z - v[0]) / v[2]
+
+@nb.jit(nopython=True)
+def skewness(tau, inter, n, state, t, z):
+    """
+    Calculate the skewness of a given time series.
+
+    Parameters:
+    - tau (float): Time constant for the moving average calculation.
+    - inter (float): Interval between data points.
+    - n (int): Number of data points to consider for the moving average.
+    - state (list): List of states containing previous data points.
+    - t (float): Current time.
+    - z (float): Value for which to calculate the skewness.
+
+    Returns:
+    - tuple: A tuple containing the current time and the calculated skewness value.
+    """
+    _,zm=zscore(tau, inter, n, state, t, z)
+    tmp=math.pow(zm,3)
+    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn,zn
+
+def kurtosis(tau, inter, n, state, t, z):
+    """
+    Calculate the kurtosis of a given time series.
+
+    Parameters:
+    - tau (float): Time constant for the moving average calculation.
+    - inter (float): Interval between data points.
+    - n (int): Number of data points to consider for the moving average.
+    - state (list): List of states containing previous data points.
+    - t (float): Current time.
+    - z (float): Value for which to calculate the kurtosis.
+
+    Returns:
+    - tuple: A tuple containing the current time and the calculated kurtosis value.
+    """
+    _,zm=zscore(tau, inter, n, state, t, z)
+    tmp=math.pow(zm,4)
+    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn,zn
 
 
 @nb.jit(nopython=True)
@@ -635,7 +675,7 @@ def linear_regression(tau, inter, n, state, t, x, y):
 
 
 @nb.jit(nopython=True)
-def linear_regression2(tau, inter, n, state, t, x, y):
+def linear_regression2(tau, inter, n, state, t, x, y, index=0):
     """
     Perform linear regression on the given data.
 
@@ -647,6 +687,12 @@ def linear_regression2(tau, inter, n, state, t, x, y):
         t (float): The time value.
         x (float): The input data.
         y (float): The output data.
+        - index (int, optional): 
+        The index of the result array to store the calculated beta value. Defaults to 4.
+        0 = alpha
+        1 = beta
+        2 = mse
+        3 = rmse
 
     Returns:
         tuple: A tuple containing the time value and the calculated beta value.
@@ -672,7 +718,7 @@ def linear_regression2(tau, inter, n, state, t, x, y):
     r[2] = mse
     r[1] = beta
     r[0] = alpha
-    return t, beta
+    return t, r[index]
 
 
 @nb.jit(nopython=True)

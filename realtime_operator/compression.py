@@ -80,6 +80,24 @@ def minimum_timedelta_interp(t,z,delta):
 
 @nb.jit(nopython=True)
 def any_compression(t, z, delta, ftype):
+    """
+    Applies one of the following compression algorithms to the data:
+
+    0: deduplicate
+    1: minimum_timedelta
+    2: exception_deviation
+    3: exception_deviation_previous
+    4: swinging_door
+
+    Args:
+        t (numpy.ndarray): Array of timestamps.
+        z (numpy.ndarray): Array of values.
+        delta (float): Parameter for the selected compression algorithm.
+        ftype (int): Type of compression algorithm to use.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of compressed time, value, and count.
+    """
     tn = []
     zn = []
     cn = []
@@ -309,6 +327,8 @@ def exception_deviation_previous(
     """
     Filters data points based on deviation from previous value and previous point.
 
+    This function is similar to exception_deviation, but it also checks the deviation from the previous point.
+
     Args:
         deviation (float): Maximum allowed deviation from previous value.
         state (numpy.ndarray): State array to store previous time, value, previous point, and count.
@@ -321,6 +341,7 @@ def exception_deviation_previous(
         Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of filtered time, value, and count.
     """
     if state[0] == 0:
+        # initialization
         state[0] = t
         state[1] = z
         state[2] = t  # previous point
