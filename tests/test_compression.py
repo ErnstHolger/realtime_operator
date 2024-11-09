@@ -11,6 +11,7 @@ from realtime_operator.compression import (
     exception_deviation,
     exception_deviation_previous,
     swinging_door,
+    swinging_door_auto
 )
 
 t = np.arange(1, 20, dtype=float) + 1
@@ -151,3 +152,20 @@ def test_swinging_door_max_duration():
 
     desired_array = np.array([1.0, 3.0, 6.0, 5.0, 7.0, 9.0, 9.0, 7.0, 5.0, 3.0])
     assert np.all(np.array(result) == desired_array)
+    def test_swinging_door_auto():
+        t = np.arange(1, 20, dtype=float) + 1
+        z = np.arange(1, 20, dtype=float)
+        tau = 0.1
+        inter = 0.01
+        n = len(t)
+        state = np.zeros(7, dtype=float)
+        result = []
+        for i in range(n):
+            _, zn, _ = swinging_door_auto(
+                0, state, t[i], z[i], tau, inter, n, 0, 1e6
+            )
+            for i in zn:
+                result.append(i)
+
+        desired_array = np.array([1.0, 10.0])
+        assert np.all(np.array(result) == desired_array)

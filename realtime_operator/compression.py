@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
-from numba.typed import List
-from enum import Enum
+
+from realtime_operator.single_operator import msd
 
 COMPRESSION_TYPE = {
     "DEDUPLICATE": 0,
@@ -16,34 +16,36 @@ EPSILON = 1e-15
 def interpolate(t, tn, zn):
     return np.interp(t, tn, zn, left=np.nan, right=np.nan)
 
+
 def segment_resample(t, z, lb, ub, count, ratio=0.6):
-    n=len(t)
-    main_count=int(round(ratio*n/count,0))
-    side_count=int(round((1-ratio)*n/(count*2),0))
-    lb_index=int(round(lb*n,0))
-    lb_step=int(round(lb*n/side_count,0))
-    ub_index=int(ub*n)
-    main_step=int(round((ub-lb)*n/main_count,0))
-    ub_step=int((1-ub)*n/side_count)
-    ti=[]
-    zi=[]
-    index=[]
-    if lb_step>0:
-        for i in range(0,lb_index,lb_step):
+    n = len(t)
+    main_count = int(round(ratio * n / count, 0))
+    side_count = int(round((1 - ratio) * n / (count * 2), 0))
+    lb_index = int(round(lb * n, 0))
+    lb_step = int(round(lb * n / side_count, 0))
+    ub_index = int(ub * n)
+    main_step = int(round((ub - lb) * n / main_count, 0))
+    ub_step = int((1 - ub) * n / side_count)
+    ti = []
+    zi = []
+    index = []
+    if lb_step > 0:
+        for i in range(0, lb_index, lb_step):
             ti.append(float(t[i]))
             zi.append(float(z[i]))
             index.append(int(i))
-    if main_step>0:
-        for i in range(lb_index,ub_index,main_step):
+    if main_step > 0:
+        for i in range(lb_index, ub_index, main_step):
             ti.append(float(t[i]))
             zi.append(float(z[i]))
             index.append(int(i))
-    if ub_step>0:
-        for i in range(ub_index,n,ub_step):
+    if ub_step > 0:
+        for i in range(ub_index, n, ub_step):
             ti.append(float(t[i]))
             zi.append(float(z[i]))
             index.append(int(i))
-    return ti,zi,index
+    return ti, zi, index
+
 
 @nb.jit(nopython=True)
 def interpolate_fast(t, tn, zn):
@@ -69,14 +71,16 @@ def interpolate_fast(t, tn, zn):
             z[i] = zn[left_tn] + m * (t[i] - tn[left_tn])
     return t, z
 
+
 @nb.jit(nopython=True)
-def minimum_timedelta_interp(t,z,delta):
+def minimum_timedelta_interp(t, z, delta):
     n = len(z)
-    if n==0:
-        return t,z
-    t_new = np.arange(t[0],t[-1]+delta,delta)
-    z_new = interpolate_fast(t_new,t,z)
-    return t_new,z_new
+    if n == 0:
+        return t, z
+    t_new = np.arange(t[0], t[-1] + delta, delta)
+    z_new = interpolate_fast(t_new, t, z)
+    return t_new, z_new
+
 
 @nb.jit(nopython=True)
 def any_compression(t, z, delta, ftype):
@@ -167,7 +171,6 @@ def deduplicate(state, t, z, min_duration_seconds, max_duration_seconds):
     Returns:
         Tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]: Tuple containing arrays of deduplicated time, value, and count.
     """
-    epsilon = 1e-15
     if state[0] == 0:
         state[0] = t
         state[1] = z
@@ -203,9 +206,9 @@ def deduplicate(state, t, z, min_duration_seconds, max_duration_seconds):
         )
     else:
         return (
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
         )
 
 
@@ -254,9 +257,9 @@ def minimum_timedelta(duration_seconds, state, t, z):
         )
     else:
         return (
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
         )
 
 
@@ -314,9 +317,9 @@ def exception_deviation(
         )
     else:
         return (
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
         )
 
 
@@ -394,9 +397,9 @@ def exception_deviation_previous(
         state[2] = t
         state[3] = z
         return (
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
         )
 
 
@@ -478,7 +481,54 @@ def swinging_door(
         state[4] = t
         state[5] = z
         return (
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
-            np.zeros(0, np.float64),
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
         )
+
+
+@nb.jit(
+    "Tuple((f8[:], f8[:], f8[:]))(f8, f8[:], f8, f8, f8, i8, i8, f8, f8)", nopython=True
+)
+def swinging_door_auto(
+    deviation,
+    state,
+    t,
+    z,
+    tau,
+    inter,
+    n,
+    min_duration_seconds=0,
+    max_duration_seconds=1e9,
+):
+    # estimate the stadard deviation
+    _, deviation = msd(tau, inter, n, state, t, z)
+    tn, zn, count = swinging_door(
+        deviation, state, t, z, min_duration_seconds, max_duration_seconds
+    )
+    return tn, zn, count
+
+
+@nb.jit(
+    "Tuple((f8[:], f8[:], f8[:]))(f8, f8[:], f8[:], f8[:], f8, i8, i8, f8, f8)",
+    nopython=True,
+)
+def swinging_door_timeseries(
+    deviation,
+    state,
+    t,
+    z,
+    tau,
+    inter,
+    n,
+    min_duration_seconds=0,
+    max_duration_seconds=1e9,
+):
+    # estimate the stadard deviation
+    n = len(t)
+    for i in range(n):
+        _, deviation = msd(tau, inter, n, state, t[i], z[i])
+        tn, zn, count = swinging_door(
+            deviation, state, t[i], z[i], min_duration_seconds, max_duration_seconds
+        )
+    return tn, zn, count

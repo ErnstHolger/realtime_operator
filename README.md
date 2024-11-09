@@ -21,7 +21,7 @@ This library offers a comprehensive suite of tools for time series analysis and 
 To use this library, ensure that you have Python installed on your system along with the `numpy` and `numba` packages. You can install these dependencies using pip:
 
 ```sh
-pip install numpy numba
+pip install numpy numba realtime_operator
 ```
 
 ## Usage
@@ -31,7 +31,9 @@ pip install numpy numba
 ```python
 import numpy as np
 import numba as nb
-from your_library_name import *  # Replace 'your_library_name' with the name of this library file
+import realtime_operator.compression as compression
+import realtime_operator.single_operator as single_operator
+import realtime_operator.alignment as alignment
 ```
 
 ### Converting Datetimes

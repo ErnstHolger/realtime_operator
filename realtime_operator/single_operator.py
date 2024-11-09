@@ -1,4 +1,5 @@
 import math
+
 import numba as nb
 import numpy as np
 
@@ -56,7 +57,7 @@ def identity(n, t, z):
     return n, t, z
 
 
-def get_inhomogeneous_time_seris(n, min_step=0.1, max_step=2.5, offset=1_704_096_000):
+def inhomogeneous_time_seris(n, min_step=0.1, max_step=2.5, offset=1_704_096_000):
     """
     Generate an inhomogeneous time series.
 
@@ -75,7 +76,8 @@ def get_inhomogeneous_time_seris(n, min_step=0.1, max_step=2.5, offset=1_704_096
     return t
 
 
-def get_sinusoid(t, amplitude, shift, frequency):
+@nb.njit()
+def sinusoid(t, amplitude, shift, frequency):
     """
     Generate a sinusoidal waveform.
 
@@ -88,13 +90,44 @@ def get_sinusoid(t, amplitude, shift, frequency):
     Returns:
     tuple: A tuple containing the time values and the generated waveform.
     """
-
-    n = t.size
-    z = amplitude * np.sin(2 * np.pi * frequency * (t + shift) / n)
+    z = amplitude * np.sin(2 * np.pi * frequency * (t + shift))
     return t, z
 
 
-def get_white_noise(length, mean=0, std_dev=1):
+@nb.njit()
+def square(t, amplitude, frequency, shift):
+    # Modified to go from 0 to amplitude instead of -amplitude to +amplitude
+    z = (amplitude / 2) * (np.sign(np.sin(2 * np.pi * frequency * (t + shift))) + 1)
+    return t, z
+
+
+@nb.njit()
+def sawtooth(t, amplitude, frequency, shift):
+    # Modified to go from 0 to amplitude
+    z = amplitude * ((t + shift) * frequency - np.floor((t + shift) * frequency))
+    return t, z
+
+
+@nb.njit()
+def gaussian(t, amplitude, frequency, shift, std):
+    # frequency determines how often the pulse repeats
+    # std controls the width of each pulse
+    # shift moves the pattern left/right
+
+    # Calculate position within each period
+    period = 1 / frequency
+    wrapped_t = (t + shift) % period
+
+    # Center the pulse in each period
+    center = period / 2
+
+    # Calculate the Gaussian pulse
+    z = amplitude * np.exp(-((wrapped_t - center) ** 2) / (2 * std**2))
+    return t, z
+
+
+@nb.njit()
+def white_noise(length, mean=0, std_dev=1):
     """
     Generate white noise samples.
 
@@ -109,7 +142,8 @@ def get_white_noise(length, mean=0, std_dev=1):
     return np.random.normal(mean, std_dev, length)
 
 
-def create_random_index(n, length):
+@nb.njit()
+def random_index(n, length):
     """
     Generate an array of random indices.
 
@@ -152,27 +186,28 @@ def update_state(state, increment):
     state[0] = idx + increment
     return idx
 
-@nb.jit(nopython=True)
-def median(state,t,z,tau_int,inter=0,time_weighted=0):
 
-    delta=np.zeros(tau_int,dtype=float)
+@nb.njit()
+def median(state, t, z, tau_int, inter=0, time_weighted=0):
+    delta = np.zeros(tau_int, dtype=float)
     if time_weighted:
-        _tau_int=int(tau_int+1)
+        _tau_int = int(tau_int + 1)
     else:
-        _tau_int=int(tau_int)
-    
-    t_slice=state[0:_tau_int]
-    z_slice=state[_tau_int:(2*_tau_int)]
-    for j in range(_tau_int-1,0,-1):
-        t_slice[j]=t_slice[j-1]
-        z_slice[j]=z_slice[j-1]
-        delta[j]=t_slice[j]-t_slice[j-1]
-    t_slice[0]=t
-    z_slice[0]=z
-    if t_slice[_tau_int-1]==0:
-        return t,z
+        _tau_int = int(tau_int)
+
+    t_slice = state[0:_tau_int]
+    z_slice = state[_tau_int : (2 * _tau_int)]
+    for j in range(_tau_int - 1, 0, -1):
+        t_slice[j] = t_slice[j - 1]
+        z_slice[j] = z_slice[j - 1]
+        delta[j] = t_slice[j] - t_slice[j - 1]
+    t_slice[0] = t
+    z_slice[0] = z
+    if t_slice[_tau_int - 1] == 0:
+        return t, z
     else:
         return t, np.median(z_slice)
+
 
 @nb.jit("Tuple((f8, f8))(f8[:], f8, f8)", nopython=True)
 def tick(state, t, z):
@@ -300,7 +335,7 @@ def ema(tau, inter, state, t, z):
         return state[1], state[0]
     if delta == 0:
         # update previous value
-        state[2]=(state[2]+z)/2
+        state[2] = (state[2] + z) / 2
         return state[1], state[0]
     alpha = delta / tau
     mu = math.exp(-alpha)
@@ -484,6 +519,7 @@ def msd(tau, inter, n, state, t, z):
     _, v = _msd(tau, inter, n, state, t, z)
     return t, v[2]
 
+
 @nb.jit(nopython=True)
 def zscore(tau, inter, n, state, t, z):
     """
@@ -511,6 +547,7 @@ def zscore(tau, inter, n, state, t, z):
         return t, 0
     return t, (z - v[0]) / v[2]
 
+
 @nb.jit(nopython=True)
 def skewness(tau, inter, n, state, t, z):
     """
@@ -527,10 +564,11 @@ def skewness(tau, inter, n, state, t, z):
     Returns:
     - tuple: A tuple containing the current time and the calculated skewness value.
     """
-    _,zm=zscore(tau, inter, n, state, t, z)
-    tmp=math.pow(zm,3)
-    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
-    return tn,zn
+    _, zm = zscore(tau, inter, n, state, t, z)
+    tmp = math.pow(zm, 3)
+    tn, zn = ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn, zn
+
 
 def kurtosis(tau, inter, n, state, t, z):
     """
@@ -547,10 +585,10 @@ def kurtosis(tau, inter, n, state, t, z):
     Returns:
     - tuple: A tuple containing the current time and the calculated kurtosis value.
     """
-    _,zm=zscore(tau, inter, n, state, t, z)
-    tmp=math.pow(zm,4)
-    tn,zn=ma(tau, inter, n, state[n * 6 :], t, tmp)
-    return tn,zn
+    _, zm = zscore(tau, inter, n, state, t, z)
+    tmp = math.pow(zm, 4)
+    tn, zn = ma(tau, inter, n, state[n * 6 :], t, tmp)
+    return tn, zn
 
 
 @nb.jit(nopython=True)
@@ -687,7 +725,7 @@ def linear_regression2(tau, inter, n, state, t, x, y, index=0):
         t (float): The time value.
         x (float): The input data.
         y (float): The output data.
-        - index (int, optional): 
+        - index (int, optional):
         The index of the result array to store the calculated beta value. Defaults to 4.
         0 = alpha
         1 = beta
@@ -723,7 +761,6 @@ def linear_regression2(tau, inter, n, state, t, x, y, index=0):
 
 @nb.jit(nopython=True)
 def downsample(state, t, z, delta):
-
     # state[0] = tp, state[1] = zp, state[2] = count
     n = math.floor(t / delta)
     tn = n * delta
