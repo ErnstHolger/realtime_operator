@@ -2,7 +2,6 @@
 .vscode
 .benchmarks
 .pytest_cache
-.github/workflows
 dist
 realtime_operator.egg-info
 __pycache__
